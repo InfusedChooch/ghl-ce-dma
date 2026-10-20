@@ -1,0 +1,32 @@
+GHL source provenance
+
+CE: https://github.com/cheat-engine/cheat-engine
+Commit: ec45d5f47f92a239ba0bf51ec5d04a7509c3fd37
+Plugin: https://github.com/kaijia2022/Cheat-Engine-DMA-Plugin
+Commit: 297ac2f48e326baefefeea77dc48b25cf80a7e36
+
+Sources contains archives of these upstream revisions, GHL's local patches,
+and the workspace build/test scripts. Rebuilding requires Lazarus 2.2.2 / FPC
+3.2.2 for CE and Visual Studio 2026 C++ v145 for the plugin. Apply each patch to
+its corresponding upstream archive, and use the workspace directory structure
+documented in SETUP.md.
+
+Reference dependency DLLs are unchanged files from the plugin checkout:
+vmm.dll: 5.8.20.140 — https://github.com/ufrisk/MemProcFS
+leechcore.dll: 2.16.9.60 — https://github.com/ufrisk/LeechCore
+FTD3XX.dll: 1.3.0.4 — https://ftdichip.com/software-examples/ft600-601-software-examples/
+These are the older matching reference binaries, not builds of our downloaded
+current LeechCore/MemProcFS checkouts. Their exact source commits are not known.
+
+GHL changes: build label, append-only SDK 7 export for IsWow64Process, x64 Lua
+link-library correction, plugin initialization validation/cleanup, and nil-module
+list handling in the Java/Mono process-open autorun handlers.
+Plugin r2 also forwards CE's current-process memory read/write/query operations
+to the original native APIs, fixes the IsWow64Process hook signature and PID
+lookup, and handles target read byte counts using the correct widths.
+Original plugin attribution and license are retained.
+Plugin r3 requests a full process refresh before list retrieval and OpenProcess,
+filters nonzero process states (terminated), and rejects nonexistent/exited PIDs.
+Process iteration checks bounds after every skipped entry; module iteration
+checks empty maps and handles null/long names without invoking CRT fail-fast.
+Hardware-free regression tests passed. Live DD2 auto-attach is not yet validated.

@@ -1,0 +1,415 @@
+diff --git a/CE-DMAPlugin.c b/CE-DMAPlugin.c
+index 840a5ee..2a670d7 100644
+--- a/CE-DMAPlugin.c
++++ b/CE-DMAPlugin.c
+@@ -20,7 +20,7 @@ ExportedFunctions Exported;
+ 
+ PVOID pOpenProcess;
+ PVOID pIsWow64Process;
+-CEP_READPROCESSMEMORY pReadProcessMemory;
++GHL_READ_PROCESS_MEMORY pReadProcessMemory;
+ PVOID pWriteProcessMemory;
+ PVOID pVirtualQueryEx;
+ 
+@@ -42,7 +42,7 @@ void __stdcall mainmenuplugin(void)
+ BOOL __stdcall CEPlugin_GetVersion(PPluginVersion pv, int sizeofpluginversion)
+ {
+ 	pv->version = CESDK_VERSION;
+-	pv->pluginname = "DMAPlugin by Kaijia2024 v1.0.0 (Require Customized SDK; version 6: 5.0+)"; //exact strings like this are pointers to the string in the dll, so workable
++	pv->pluginname = "GHL DMA Plugin r3 (based on Kaijia2024 v1.0.0; requires GHL SDK 7)";
+ 	return TRUE;
+ }
+ 
+@@ -57,7 +57,7 @@ void hookFunctions() {
+ 
+ 	pOpenProcess = *(PVOID*)Exported.OpenProcess;
+ 	pIsWow64Process = *(PVOID*)Exported.IsWow64Process;
+-	pReadProcessMemory = *(CEP_READPROCESSMEMORY*)Exported.ReadProcessMemory;
++	pReadProcessMemory = (GHL_READ_PROCESS_MEMORY)*(PVOID*)Exported.ReadProcessMemory;
+ 	pWriteProcessMemory = *(PVOID*)Exported.WriteProcessMemory;
+ 	pVirtualQueryEx = *(PVOID*)Exported.VirtualQueryEx;
+ 
+@@ -69,7 +69,7 @@ void hookFunctions() {
+ 
+ 	*(PVOID*)Exported.OpenProcess = (PVOID)&hOpenProcess;
+ 	*(PVOID*)Exported.IsWow64Process = (PVOID)&hIsWow64Process;
+-	*(CEP_READPROCESSMEMORY*)Exported.ReadProcessMemory = (CEP_READPROCESSMEMORY)&hReadProcessMemory;
++	*(PVOID*)Exported.ReadProcessMemory = (PVOID)&hReadProcessMemory;
+ 	*(PVOID*)Exported.WriteProcessMemory = (PVOID)&hWriteProcessMemory;
+ 	*(PVOID*)Exported.VirtualQueryEx = (PVOID)&hVirtualQueryEx;
+ 
+@@ -83,7 +83,7 @@ void hookFunctions() {
+ void unhookFunctions() {
+ 	*(PVOID*)Exported.OpenProcess = pOpenProcess;
+ 	*(PVOID*)Exported.IsWow64Process = pIsWow64Process;
+-	*(CEP_READPROCESSMEMORY*)Exported.ReadProcessMemory = pReadProcessMemory;
++	*(PVOID*)Exported.ReadProcessMemory = (PVOID)pReadProcessMemory;
+ 	*(PVOID*)Exported.WriteProcessMemory = pWriteProcessMemory;
+ 	*(PVOID*)Exported.VirtualQueryEx = pVirtualQueryEx;
+ 
+@@ -97,7 +97,18 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef , int pluginid)
+ {
+ 	MAINMENUPLUGIN_INIT init0;
+ 	
++	//Check the table before reading appended fields or initializing hardware.
++	if (!ef || ef->sizeofExportedFunctions != sizeof(Exported))
++		return FALSE;
++	Exported = *ef;
++	if (!Exported.IsWow64Process)
++		return FALSE;
+ 	hVMM = VMMDLL_Initialize(3, (LPSTR[]) { "", "-device", "fpga" });
++	if (!hVMM)
++	{
++		Exported.ShowMessage("GHL: DMA initialization failed; check the FT601 connection and firmware.");
++		return FALSE;
++	}
+ 
+ 	selfid=pluginid;
+ 
+@@ -109,12 +120,15 @@ BOOL __stdcall CEPlugin_InitializePlugin(PExportedFunctions ef , int pluginid)
+ 	hookFunctions();
+ 
+ 
+-	init0.name="DMAPlugin -- kaijia2024";
++	init0.name="GHL DMA Plugin -- based on kaijia2024";
+ 	init0.callbackroutine=mainmenuplugin;
+ 
+ 	MainMenuPluginID=Exported.RegisterFunction(pluginid, ptMainMenu, &init0); //adds a plugin menu item to the memory view
+ 	if ( MainMenuPluginID == -1 )
+ 	{
++		unhookFunctions();
++		VMMDLL_Close(hVMM);
++		hVMM = NULL;
+ 		Exported.ShowMessage("Failure to register DMAPlugin");
+ 		return FALSE;
+ 	}	
+diff --git a/CE-DMAPlugin.vcxproj b/CE-DMAPlugin.vcxproj
+index 4f499cd..997df45 100644
+--- a/CE-DMAPlugin.vcxproj
++++ b/CE-DMAPlugin.vcxproj
+@@ -117,7 +117,7 @@
+       <SubSystem>Windows</SubSystem>
+       <GenerateDebugInformation>true</GenerateDebugInformation>
+       <EnableUAC>false</EnableUAC>
+-      <AdditionalDependencies>lua53-32.lib;lua53-64.lib;user32.lib;vmm.lib;leechcore.lib</AdditionalDependencies>
++      <AdditionalDependencies>lua53-64.lib;user32.lib;vmm.lib;leechcore.lib</AdditionalDependencies>
+       <OutputFile>$(OutDir)CE-DMAPlugin.dll</OutputFile>
+       <RandomizedBaseAddress>false</RandomizedBaseAddress>
+       <ImportLibrary>$(OutDir)CE-DMAPlugin.lib</ImportLibrary>
+@@ -139,7 +139,7 @@
+       <OptimizeReferences>true</OptimizeReferences>
+       <GenerateDebugInformation>true</GenerateDebugInformation>
+       <EnableUAC>false</EnableUAC>
+-      <AdditionalDependencies>lua53-32.lib;lua53-64.lib;user32.lib;vmm.lib;leechcore.lib</AdditionalDependencies>
++      <AdditionalDependencies>lua53-64.lib;user32.lib;vmm.lib;leechcore.lib</AdditionalDependencies>
+       <OutputFile>$(OutDir)CE-DMAPlugin.dll</OutputFile>
+       <RandomizedBaseAddress>false</RandomizedBaseAddress>
+       <ImportLibrary>$(OutDir)CE-DMAPlugin.lib</ImportLibrary>
+@@ -167,4 +167,4 @@
+   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+   <ImportGroup Label="ExtensionTargets">
+   </ImportGroup>
+-</Project>
+\ No newline at end of file
++</Project>
+diff --git a/hFunctions.c b/hFunctions.c
+index 1c184d4..cc58a4f 100644
+--- a/hFunctions.c
++++ b/hFunctions.c
+@@ -115,10 +115,21 @@ BOOL updateVadMap() {
+  */
+ HANDLE __stdcall hOpenProcess(DWORD dwDesirteedAccess, BOOL bInheritHandle, DWORD dwProcessId)
+ {
++    VMMDLL_PROCESS_INFORMATION info = { 0 };
++    SIZE_T size = sizeof(info);
++    info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
++    info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
++    if (!hVMM || !VMMDLL_ConfigSet(hVMM, VMMDLL_OPT_REFRESH_FREQ_MEDIUM, 1) ||
++        !VMMDLL_ProcessGetInformation(hVMM, dwProcessId, &info, &size) || info.dwState != 0) {
++        SetLastError(ERROR_INVALID_PARAMETER);
++        return NULL;
++    }
+     currentPID = dwProcessId;
+     vadMapInitialized = FALSE;
++    previousAoQ = 0;
++    vadIdx = 0;
+ 
+-    return  (HANDLE)dwProcessId;
++    return (HANDLE)(ULONG_PTR)dwProcessId;
+ }
+ 
+ /**
+@@ -127,11 +138,28 @@ HANDLE __stdcall hOpenProcess(DWORD dwDesirteedAccess, BOOL bInheritHandle, DWOR
+  * @param   isWow64, set to true if the process is wow 64, false otherwise.
+  * @return  Always returns true, assumes you are using Windows.
+  */
+-BOOL __stdcall hIsWow64Process(HANDLE hProcess, BOOL isWow64)
++BOOL __stdcall hIsWow64Process(HANDLE hProcess, PBOOL isWow64)
+ {
+-    PVMMDLL_PROCESS_INFORMATION pProcInfoEntry;
+-    pProcInfoEntry = &pProcInfoAll[*(unsigned int*)hProcess];
+-    isWow64 = pProcInfoEntry->win.fWow64;
++    if (!isWow64) {
++        SetLastError(ERROR_INVALID_PARAMETER);
++        return FALSE;
++    }
++    if (hProcess == GetCurrentProcess()) {
++        return ((BOOL (WINAPI *)(HANDLE, PBOOL))pIsWow64Process)(hProcess, isWow64);
++    }
++    *isWow64 = FALSE;
++    if (!hVMM) {
++        SetLastError(ERROR_INVALID_HANDLE);
++        return FALSE;
++    }
++    VMMDLL_PROCESS_INFORMATION info = { 0 };
++    SIZE_T infoSize = sizeof(info);
++    info.magic = VMMDLL_PROCESS_INFORMATION_MAGIC;
++    info.wVersion = VMMDLL_PROCESS_INFORMATION_VERSION;
++    if (!VMMDLL_ProcessGetInformation(hVMM, (DWORD)(ULONG_PTR)hProcess, &info, &infoSize) || info.dwState != 0) {
++        return FALSE;
++    }
++    *isWow64 = info.win.fWow64;
+     return TRUE;
+ }
+ 
+@@ -146,8 +174,19 @@ BOOL __stdcall hIsWow64Process(HANDLE hProcess, BOOL isWow64)
+  */
+ BOOL __stdcall hReadProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead)
+ {
++    //CE's local Lua/table streams belong to the reader, not the DMA target.
++    if (hProcess == GetCurrentProcess()) {
++        return pReadProcessMemory(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesRead);
++    }
++    if (lpNumberOfBytesRead) { *lpNumberOfBytesRead = 0; }
++    if (!hVMM || nSize > MAXDWORD) {
++        SetLastError(!hVMM ? ERROR_INVALID_HANDLE : ERROR_NOT_SUPPORTED);
++        return FALSE;
++    }
++    DWORD bytesRead = 0;
+     BOOL result;
+-    result = VMMDLL_MemReadEx(hVMM, (DWORD)hProcess, (ULONG64)lpBaseAddress, (PBYTE)lpBuffer, (DWORD)nSize, (PDWORD)lpNumberOfBytesRead, VMMDLL_FLAG_NOCACHE);
++    result = VMMDLL_MemReadEx(hVMM, (DWORD)(ULONG_PTR)hProcess, (ULONG64)lpBaseAddress, (PBYTE)lpBuffer, (DWORD)nSize, &bytesRead, VMMDLL_FLAG_NOCACHE);
++    if (lpNumberOfBytesRead) { *lpNumberOfBytesRead = bytesRead; }
+ 
+     /*if (*lpNumberOfBytesRead == nSize)
+         return result;
+@@ -167,8 +206,16 @@ BOOL __stdcall hReadProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID
+  */
+ BOOL _stdcall hWriteProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesWritten)
+ {
++    if (hProcess == GetCurrentProcess()) {
++        return ((BOOL (WINAPI *)(HANDLE, LPCVOID, LPVOID, SIZE_T, SIZE_T*))pWriteProcessMemory)(hProcess, lpBaseAddress, lpBuffer, nSize, lpNumberOfBytesWritten);
++    }
++    if (lpNumberOfBytesWritten) { *lpNumberOfBytesWritten = 0; }
++    if (!hVMM || nSize > MAXDWORD) {
++        SetLastError(!hVMM ? ERROR_INVALID_HANDLE : ERROR_NOT_SUPPORTED);
++        return FALSE;
++    }
+     BOOL result;
+-    result = VMMDLL_MemWrite(hVMM, (DWORD)hProcess, (ULONG64)lpBaseAddress, (PBYTE)lpBuffer, (DWORD)nSize);
++    result = VMMDLL_MemWrite(hVMM, (DWORD)(ULONG_PTR)hProcess, (ULONG64)lpBaseAddress, (PBYTE)lpBuffer, (DWORD)nSize);
+     if (result) {
+         if (lpNumberOfBytesWritten) {
+             *lpNumberOfBytesWritten = nSize;
+@@ -212,6 +259,9 @@ BOOL GetNextVaStartAddr() {
+  */
+ DWORD __stdcall hVirtualQueryEx(HANDLE hProcess, LPCVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, DWORD dwLength)
+ {
++    if (hProcess == GetCurrentProcess()) {
++        return ((DWORD (WINAPI *)(HANDLE, LPCVOID, PMEMORY_BASIC_INFORMATION, DWORD))pVirtualQueryEx)(hProcess, lpAddress, lpBuffer, dwLength);
++    }
+ 
+     if (!vadMapInitialized) {
+         if (pVadMap) {
+@@ -304,15 +354,19 @@ HANDLE __stdcall hCreateToolhelp32Snapshot(DWORD dwFlags, DWORD th32ProcessID)
+         VMMDLL_MemFree(pProcInfoAll);
+         pProcInfoAll = NULL;
+         cProcInfo = 0;
++        if (!hVMM || !VMMDLL_ConfigSet(hVMM, VMMDLL_OPT_REFRESH_FREQ_MEDIUM, 1)) {
++            return NULL;
++        }
+         result = VMMDLL_ProcessGetInformationAll(hVMM, &pProcInfoAll, &cProcInfo);
+         if (result) {
+             procIdx = 0;
+             return (HANDLE)&procIdx;
+         }
+     }
+-    else if (dwFlags == (TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32)) {
++    else if (dwFlags & (TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32)) {
+         VMMDLL_MemFree(pmModule);
+         pmModule = NULL;
++        if (!hVMM) { return NULL; }
+         result = VMMDLL_Map_GetModuleU(hVMM, th32ProcessID, &pmModule, 0);
+         if (result) {
+             moduleIdx = 0;
+@@ -341,24 +395,9 @@ BOOL isCommonProcess(PVMMDLL_PROCESS_INFORMATION proc)
+  */
+ BOOL __stdcall hProcess32First(HANDLE hSnapshot, LPPROCESSENTRY32 lppe)
+ {
+-    if (!pProcInfoAll || (ULONG64)hSnapshot == 0) {
+-        return 0;
+-    }
+-    PVMMDLL_PROCESS_INFORMATION pProcInfoEntry;
+-
+-    pProcInfoEntry = &pProcInfoAll[*(unsigned int*)hSnapshot];
+-
+-    while (isCommonProcess(pProcInfoEntry)) {
+-        *(unsigned int*)hSnapshot += 1;
+-        pProcInfoEntry = &pProcInfoAll[*(unsigned int*)hSnapshot];
+-    }
+-
+-    lppe->th32ProcessID = pProcInfoEntry->dwPID;
+-    lppe->th32ParentProcessID = pProcInfoEntry->dwPPID;
+-    lppe->dwSize = pProcInfoEntry->wSize;
+-    strncpy_s(lppe->szExeFile, sizeof(lppe->szExeFile),pProcInfoEntry->szNameLong, 64);
+-    *(unsigned int*)hSnapshot += 1;
+-    return 1;
++    if (hSnapshot != (HANDLE)&procIdx) { return FALSE; }
++    procIdx = 0;
++    return hProcess32Next(hSnapshot, lppe);
+ }
+ 
+ /**
+@@ -369,24 +408,21 @@ BOOL __stdcall hProcess32First(HANDLE hSnapshot, LPPROCESSENTRY32 lppe)
+  */
+ BOOL __stdcall hProcess32Next(HANDLE hSnapshot, LPPROCESSENTRY32 lppe)
+ {
+-    if ((ULONG64)hSnapshot == 0 || *(unsigned int*)hSnapshot >= cProcInfo || *(unsigned int*)hSnapshot <= 0) {
+-        return 0;
+-    }
+-    PVMMDLL_PROCESS_INFORMATION pProcInfoEntry;
+-
+-    pProcInfoEntry = &pProcInfoAll[*(unsigned int*)hSnapshot];
+-
+-    while (isCommonProcess(pProcInfoEntry)) {
+-        *(unsigned int*)hSnapshot += 1;
+-        pProcInfoEntry = &pProcInfoAll[*(unsigned int*)hSnapshot];
++    if (hSnapshot != (HANDLE)&procIdx || !lppe || !pProcInfoAll) { return FALSE; }
++    while (procIdx < cProcInfo) {
++        PVMMDLL_PROCESS_INFORMATION proc = &pProcInfoAll[procIdx++];
++        if (proc->dwState != 0 || isCommonProcess(proc)) { continue; }
++        ZeroMemory(lppe, sizeof(*lppe));
++        lppe->dwSize = sizeof(*lppe);
++        lppe->th32ProcessID = proc->dwPID;
++        lppe->th32ParentProcessID = proc->dwPPID;
++        //The source is a fixed-size array, not necessarily NUL terminated.
++        memcpy(lppe->szExeFile, proc->szNameLong, sizeof(proc->szNameLong));
++        lppe->szExeFile[sizeof(proc->szNameLong)] = '\0';
++        return TRUE;
+     }
+-
+-    lppe->th32ProcessID = pProcInfoEntry->dwPID;
+-    lppe->th32ParentProcessID = pProcInfoEntry->dwPPID;
+-    lppe->dwSize = pProcInfoEntry->wSize;
+-    strncpy_s(lppe->szExeFile, sizeof(lppe->szExeFile), pProcInfoEntry->szNameLong, 64);
+-    *(unsigned int*)hSnapshot += 1;
+-    return 1;
++    SetLastError(ERROR_NO_MORE_FILES);
++    return FALSE;
+ }
+ 
+ /**
+@@ -397,21 +433,9 @@ BOOL __stdcall hProcess32Next(HANDLE hSnapshot, LPPROCESSENTRY32 lppe)
+  */
+ BOOL __stdcall hModule32First(HANDLE hSnapshot, LPMODULEENTRY32 lpme)
+ {
+-    if (!pmModule || (ULONG64)hSnapshot == 0) {
+-        return 0;
+-    }
+-
+-    PVMMDLL_MAP_MODULEENTRY pmModuleEntry;
+-
+-    pmModuleEntry = &pmModule->pMap[*(unsigned int*)hSnapshot];
+-
+-    lpme->modBaseAddr = (BYTE*)pmModuleEntry->vaBase;
+-    lpme->modBaseSize = pmModuleEntry->cbImageSize;
+-    strncpy_s(lpme->szExePath, sizeof(lpme->szExePath),pmModuleEntry->uszFullName, 260);
+-    strncpy_s(lpme->szModule, sizeof(lpme->szModule), pmModuleEntry->uszText, 256);
+-    *(unsigned int*)hSnapshot += 1;
+-    return 1;
+-
++    if (hSnapshot != (HANDLE)&moduleIdx) { return FALSE; }
++    moduleIdx = 0;
++    return hModule32Next(hSnapshot, lpme);
+ }
+ 
+ /**
+@@ -422,18 +446,19 @@ BOOL __stdcall hModule32First(HANDLE hSnapshot, LPMODULEENTRY32 lpme)
+  */
+ BOOL __stdcall hModule32Next(HANDLE hSnapshot, LPMODULEENTRY32 lpme)
+ {
+-    if (!pmModule || (ULONG64)hSnapshot == 0 || *(unsigned int*)hSnapshot >= pmModule->cMap || *(unsigned int*)hSnapshot <= 0) {
++    if (hSnapshot != (HANDLE)&moduleIdx || !lpme || !pmModule || moduleIdx >= pmModule->cMap) {
+         return 0;
+     }
+ 
+     PVMMDLL_MAP_MODULEENTRY pmModuleEntry;
+ 
+-    pmModuleEntry = &pmModule->pMap[*(unsigned int*)hSnapshot];
++    pmModuleEntry = &pmModule->pMap[moduleIdx++];
+ 
++    ZeroMemory(lpme, sizeof(*lpme));
++    lpme->dwSize = sizeof(*lpme);
+     lpme->modBaseAddr = (BYTE*)pmModuleEntry->vaBase;
+     lpme->modBaseSize = pmModuleEntry->cbImageSize;
+-    strncpy_s(lpme->szExePath, sizeof(lpme->szExePath), pmModuleEntry->uszFullName, 260);
+-    strncpy_s(lpme->szModule, sizeof(lpme->szModule), pmModuleEntry->uszText, 256);
+-    *(unsigned int*)hSnapshot += 1;
++    strncpy_s(lpme->szExePath, sizeof(lpme->szExePath), pmModuleEntry->uszFullName ? pmModuleEntry->uszFullName : "", _TRUNCATE);
++    strncpy_s(lpme->szModule, sizeof(lpme->szModule), pmModuleEntry->uszText ? pmModuleEntry->uszText : "", _TRUNCATE);
+     return 1;
+ }
+diff --git a/hFunctions.h b/hFunctions.h
+index bcfdff6..2f92ad6 100644
+--- a/hFunctions.h
++++ b/hFunctions.h
+@@ -46,6 +46,11 @@ enum dwFlags {
+ };
+ 
+ extern VMM_HANDLE hVMM;
++typedef BOOL (WINAPI *GHL_READ_PROCESS_MEMORY)(HANDLE, LPCVOID, LPVOID, SIZE_T, SIZE_T*);
++extern GHL_READ_PROCESS_MEMORY pReadProcessMemory;
++extern PVOID pIsWow64Process;
++extern PVOID pWriteProcessMemory;
++extern PVOID pVirtualQueryEx;
+ extern PVMMDLL_PROCESS_INFORMATION pProcInfoAll;
+ extern DWORD cProcInfo;
+ extern PVMMDLL_MAP_MODULE pmModule;
+@@ -53,7 +58,7 @@ extern PVMMDLL_MAP_VAD pVadMap;
+ 
+ 
+ extern HANDLE __stdcall hOpenProcess(DWORD dwDesirteedAccess,  BOOL bInheritHandle, DWORD dwProcessId);
+-extern BOOL __stdcall hIsWow64Process(HANDLE hProcess);
++extern BOOL __stdcall hIsWow64Process(HANDLE hProcess, PBOOL isWow64);
+ extern BOOL __stdcall hReadProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesRead);
+ extern BOOL _stdcall hWriteProcessMemory(HANDLE hProcess, LPCVOID lpBaseAddress, LPVOID lpBuffer, SIZE_T nSize, SIZE_T* lpNumberOfBytesWritten);
+ extern DWORD __stdcall hVirtualQueryEx(HANDLE hProcess, LPCVOID lpAddress, PMEMORY_BASIC_INFORMATION lpBuffer, DWORD dwLength);
+diff --git a/include/cepluginsdk.h b/include/cepluginsdk.h
+index 0cef46c..ffa1726 100644
+--- a/include/cepluginsdk.h
++++ b/include/cepluginsdk.h
+@@ -17,7 +17,7 @@
+ #include "lauxlib.h"
+ 
+ 
+-#define CESDK_VERSION 6
++#define CESDK_VERSION 7 //GHL: legacy layout with an appended IsWow64Process slot
+ 
+ typedef enum {ptAddressList=0, ptMemoryView=1, ptOnDebugEvent=2, ptProcesswatcherEvent=3, ptFunctionPointerchange=4, ptMainMenu=5, ptDisassemblerContext=6, ptDisassemblerRenderLine=7, ptAutoAssembler=8} PluginType;
+ typedef enum {aaInitialize=0, aaPhase1=1, aaPhase2=2, aaFinalize=3} AutoAssemblerPhase;
+@@ -364,7 +364,6 @@ typedef struct _ExportedFunctions
+   PVOID Module32Next;            	//   ...
+   PVOID Heap32ListFirst;         	//   ...
+   PVOID Heap32ListNext;          	//   ...
+-  PVOID IsWow64Process;
+   //^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ 
+   //advanced for delphi 7 enterprise dll programmers only
+@@ -460,6 +459,9 @@ typedef struct _ExportedFunctions
+   CEP_GETLUASTATE GetLuaState;
+   VOID *MainThreadCall;
+ 
++  //GHL SDK 7 extension: keep all preceding fields at upstream offsets.
++  PVOID IsWow64Process;
++
+ } ExportedFunctions, *PExportedFunctions;

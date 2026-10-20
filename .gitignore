@@ -1,0 +1,8 @@
+/sources/
+/tools/
+/build/
+*.log
+*.pdb
+*.CT
+*.ct
+.env

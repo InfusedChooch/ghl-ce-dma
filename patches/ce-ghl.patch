@@ -1,0 +1,221 @@
+diff --git a/Cheat Engine/MainUnit2.pas b/Cheat Engine/MainUnit2.pas
+index c8f3c44..34319f6 100755
+--- a/Cheat Engine/MainUnit2.pas	
++++ b/Cheat Engine/MainUnit2.pas	
+@@ -21,7 +21,7 @@ uses
+ 
+ const
+   ceversion=7.51;
+-  strVersionPart='7.5.1';
++  strVersionPart='7.5.1 GHL';
+ {$ifdef altname}  //i'd use $MACRO ON but fpc bugs out
+   strCheatEngine='Runtime Modifier'; //if you change this, also change it in first.pas
+   strCheatTable='Code Table';   //because it contains code.... duh.....
+diff --git a/Cheat Engine/bin/autorun/java.lua b/Cheat Engine/bin/autorun/java.lua
+index 8093cd8..a588190 100755
+--- a/Cheat Engine/bin/autorun/java.lua	
++++ b/Cheat Engine/bin/autorun/java.lua	
+@@ -3121,9 +3121,9 @@ createthread(sev)
+   end
+ end
+ 
+-function java_OpenProcessAfterwards()
+-  local usesjava=false
+-  local m=enumModules()
++function java_OpenProcessAfterwards()
++  local usesjava=false
++  local m=enumModules() or {}
+   local i
+ 
+   java_classlist=nil
+diff --git a/Cheat Engine/bin/autorun/monoscript.lua b/Cheat Engine/bin/autorun/monoscript.lua
+index 075fa25..3bb531c 100755
+--- a/Cheat Engine/bin/autorun/monoscript.lua	
++++ b/Cheat Engine/bin/autorun/monoscript.lua	
+@@ -4434,12 +4434,12 @@ end
+ 
+ 
+ 
+-function mono_OpenProcessMT()
+- -- print("mono_OpenProcessMT")
+-  --enumModules is faster than getAddress at OpenProcess time (No waiting for all symbols to be loaded first)
+-  local usesmono=false
+-  local usesdotnet=false
+-  local m=enumModules()
++function mono_OpenProcessMT()
++ -- print("mono_OpenProcessMT")
++  --enumModules is faster than getAddress at OpenProcess time (No waiting for all symbols to be loaded first)
++  local usesmono=false
++  local usesdotnet=false
++  local m=enumModules() or {}
+   local i
+   for i=1, #m do
+    -- print(m[i].Name)
+diff --git a/Cheat Engine/cheatengine.lpi b/Cheat Engine/cheatengine.lpi
+index 4774028..98c70b3 100755
+--- a/Cheat Engine/cheatengine.lpi	
++++ b/Cheat Engine/cheatengine.lpi	
+@@ -9,7 +9,7 @@
+       </Flags>
+       <SessionStorage Value="InProjectDir"/>
+       <AutoCreateForms Value="False"/>
+-      <Title Value="Cheat Engine 7.5"/>
++      <Title Value="Cheat Engine GHL"/>
+       <UseXPManifest Value="True"/>
+       <XPManifest>
+         <DpiAware Value="True"/>
+@@ -27,10 +27,10 @@
+       <AutoIncrementBuild Value="True"/>
+       <MajorVersionNr Value="7"/>
+       <MinorVersionNr Value="5"/>
+-      <BuildNr Value="7712"/>
++      <BuildNr Value="7713"/>
+       <Language Value="041C"/>
+       <CharSet Value="04B0"/>
+-      <StringTable CompanyName="Cheat Engine" FileDescription="Cheat Engine" ProductVersion="7.5"/>
++      <StringTable CompanyName="Cheat Engine" FileDescription="Cheat Engine GHL" ProductVersion="7.5.1 GHL"/>
+     </VersionInfo>
+     <BuildModes Count="11">
+       <Item1 Name="Release 32-Bit" Default="True"/>
+@@ -3143,73 +3143,10 @@
+         <Define19 Value="overflowdebug"/>
+       </OtherDefines>
+     </Other>
+-  </CompilerOptions>
+-  <Debugging>
+-    <Exceptions Count="19">
+-      <Item1>
+-        <Name Value="EAbort"/>
+-        <Enabled Value="False"/>
+-      </Item1>
+-      <Item2>
+-        <Name Value="ECodetoolError"/>
+-        <Enabled Value="False"/>
+-      </Item2>
+-      <Item3>
+-        <Name Value="EFOpenError"/>
+-      </Item3>
+-      <Item4>
+-        <Name Value="Unknown"/>
+-        <Enabled Value="False"/>
+-      </Item4>
+-      <Item5>
+-        <Name Value="ERegistryException"/>
+-      </Item5>
+-      <Item6>
+-        <Name Value="Exception"/>
+-        <Enabled Value="False"/>
+-      </Item6>
+-      <Item7>
+-        <Name Value="EConvertError"/>
+-      </Item7>
+-      <Item8>
+-        <Name Value="symexception"/>
+-      </Item8>
+-      <Item9>
+-        <Name Value="External: SIGILL"/>
+-        <Enabled Value="False"/>
+-      </Item9>
+-      <Item10>
+-        <Name Value="SIGILL"/>
+-        <Enabled Value="False"/>
+-      </Item10>
+-      <Item11>
+-        <Name Value="EAssemblerException"/>
+-      </Item11>
+-      <Item12>
+-        <Name Value="EAutoAssembler"/>
+-      </Item12>
+-      <Item13>
+-        <Name Value="EVariantError"/>
+-      </Item13>
+-      <Item14>
+-        <Name Value="EFileMapError"/>
+-      </Item14>
+-      <Item15>
+-        <Name Value="EParserError"/>
+-      </Item15>
+-      <Item16>
+-        <Name Value="EProcess"/>
+-        <Enabled Value="False"/>
+-      </Item16>
+-      <Item17>
+-        <Name Value="ESavedScanException"/>
+-      </Item17>
+-      <Item18>
+-        <Name Value="EAdvancedOptionsDuplicateException"/>
+-      </Item18>
+-      <Item19>
+-        <Name Value="EDebuggerAttachException"/>
+-      </Item19>
+-    </Exceptions>
+-  </Debugging>
+-</CONFIG>
++  </CompilerOptions>
++  <Debugging>
++              <DebugInfoType Value="dsDwarf2Set"/>
++              <StripSymbols Value="True"/>
++              <UseExternalDbgSyms Value="True"/>
++            </Debugging>
++</CONFIG>
+diff --git a/Cheat Engine/plugin.pas b/Cheat Engine/plugin.pas
+index ba660f4..20c50b7 100755
+--- a/Cheat Engine/plugin.pas	
++++ b/Cheat Engine/plugin.pas	
+@@ -14,7 +14,7 @@ uses lclproc,
+      classes, sysutils,LCLIntf,checklst,menus,dialogs,CEFuncProc,
+      NewKernelHandler, graphics, syncobjs, commonTypeDefs, betterControls;
+ 
+-const CurrentPluginVersion=6;
++const CurrentPluginVersion=7; //GHL extension; legacy function tables remain unchanged
+ 
+ //todo: Move the type definitions to a different unit
+ 
+@@ -227,7 +227,13 @@ type
+ 
+ type PExportedFunctions5 = ^TExportedFunctions5;
+ 
+-type TExportedFunctions = TExportedFunctions5; //<----adjust on new version
++type TExportedFunctions = TExportedFunctions5; //<----adjust on new version
++
++//GHL SDK 7 appends its extension without moving legacy fields.
++type TExportedFunctionsGHL = record
++  Base: TExportedFunctions;
++  IsWow64Process: pointer;
++end;
+ 
+ 
+ type TExportedFunctions4 = record
+@@ -1361,8 +1367,9 @@ begin
+   end;
+ end;
+ 
+-procedure TPluginHandler.EnablePlugin(pluginid: integer);
+-var e: texportedfunctions;
++procedure TPluginHandler.EnablePlugin(pluginid: integer);
++var e: texportedfunctions;
++    eGHL: TExportedFunctionsGHL;
+     enet: TExportedFunctionsDotNetV1 absolute e;
+     x: boolean;
+ begin
+@@ -1395,7 +1402,19 @@ begin
+     begin
+       OutputDebugString('Calling EnablePlugin');
+ 
+-      x:=plugins[pluginid].EnablePlugin(e,pluginid);
++      if (plugins[pluginid].pluginversion=7) and not plugins[pluginid].dotnet then
++      begin
++        eGHL.Base:=e;
++        eGHL.Base.sizeofExportedFunctions:=sizeof(TExportedFunctionsGHL);
++        {$ifdef windows}
++        eGHL.IsWow64Process:=@@newkernelhandler.IsWow64Process;
++        {$else}
++        eGHL.IsWow64Process:=nil;
++        {$endif}
++        x:=plugins[pluginid].EnablePlugin(eGHL.Base,pluginid);
++      end
++      else
++        x:=plugins[pluginid].EnablePlugin(e,pluginid);
+ 
+       if not x then raise exception.Create(Format(rsErrorEnabling, [plugins[pluginid].dllname]));
+       plugins[pluginid].enabled:=true;

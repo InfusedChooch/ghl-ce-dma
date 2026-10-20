@@ -1,0 +1,2 @@
+3fa68fe3734da75e78472f06f77fccadad465cfbbe2936b1c8a1afe75cd7bb69  ce-dma-plugin.zip
+093920b0775a36df3556e68d890d651cfb10d983f69ef1fb2010bf142d34018a  cheat-engine-upstream.zip
